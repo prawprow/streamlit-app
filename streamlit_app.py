@@ -1,23 +1,16 @@
-
-# อัปโหลดไฟล์
 import streamlit as st
-
-st.title("📤 Upload .txt to Convert to Excel")
-
-uploaded_file = st.file_uploader("Choose a .txt file", type="txt")
-
-if uploaded_file is not None:
-    lines = uploaded_file.read().decode("utf-8").splitlines()
-
-
-filename = list(uploaded.keys())[0]
-with open(filename, "r", encoding="utf-8", errors="ignore") as f:
-    lines = f.readlines()
-
 import pandas as pd
 import re
 
-raw_lines = [line.strip() for line in lines if line.strip()]
+st.set_page_config(page_title="TXT to Excel", page_icon="📄")
+st.title("📄 แปลงไฟล์ .txt เป็น Excel")
+
+uploaded_file = st.file_uploader("📤 อัปโหลดไฟล์ .txt", type="txt")
+
+if uploaded_file is not None:
+    raw_text = uploaded_file.read().decode("utf-8", errors="ignore")
+    raw_lines = [line.strip() for line in raw_text.splitlines() if line.strip()]
+
 start_index = next((i for i, line in enumerate(raw_lines) if re.match(r'\d{7}', line)), 0)
 data_lines = raw_lines[start_index:]
 

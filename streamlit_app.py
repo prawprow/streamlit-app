@@ -11,8 +11,8 @@ if uploaded_file is not None:
     raw_text = uploaded_file.read().decode("utf-8", errors="ignore")
     raw_lines = [line.strip() for line in raw_text.splitlines() if line.strip()]
 
-start_index = next((i for i, line in enumerate(raw_lines) if re.match(r'\d{7}', line)), 0)
-data_lines = raw_lines[start_index:]
+    start_index = next((i for i, line in enumerate(raw_lines) if re.match(r'\d{7}', line)), 0)
+    data_lines = raw_lines[start_index:]
 
 entry_groups = []
 current_group = []

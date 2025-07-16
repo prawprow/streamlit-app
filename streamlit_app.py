@@ -1,5 +1,3 @@
-# ติดตั้งไลบรารี
-!pip install pandas openpyxl
 
 # อัปโหลดไฟล์
 from google.colab import files

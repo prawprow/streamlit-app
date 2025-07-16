@@ -14,19 +14,19 @@ if uploaded_file is not None:
     start_index = next((i for i, line in enumerate(raw_lines) if re.match(r'\d{7}', line)), 0)
     data_lines = raw_lines[start_index:]
 
-entry_groups = []
-current_group = []
-entry_no = None
-for line in data_lines:
-    if re.match(r'\d{7}', line):
-        if current_group:
-            entry_groups.append((entry_no, current_group))
-        entry_no = line.strip().split()[0]
-        current_group = [line]
-    elif current_group:
-        current_group.append(line)
-if current_group:
-    entry_groups.append((entry_no, current_group))
+    entry_groups = []
+    current_group = []
+    entry_no = None
+    for line in data_lines:
+        if re.match(r'\d{7}', line):
+            if current_group:
+                entry_groups.append((entry_no, current_group))
+            entry_no = line.strip().split()[0]
+            current_group = [line]
+        elif current_group:
+            current_group.append(line)
+    if current_group:
+        entry_groups.append((entry_no, current_group))
 
 all_rows = []
 for entry_index, (entry_no, group) in enumerate(entry_groups):

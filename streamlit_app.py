@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import re
+import io
 
 st.set_page_config(page_title="TXT to Excel Converter", page_icon="📄")
 st.title("📄 แปลงไฟล์ .txt เป็น Excel")
@@ -146,7 +147,10 @@ if uploaded_file is not None:
 
     @st.cache_data
     def convert_df(df):
-        return df.to_excel(index=False, engine='openpyxl')
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df.to_excel(writer, index=False)
+        return output.getvalue()
 
     st.download_button(
         label="📥 ดาวน์โหลดเป็น Excel",

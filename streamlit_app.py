@@ -1,7 +1,15 @@
 
 # อัปโหลดไฟล์
-from google.colab import files
-uploaded = files.upload()
+import streamlit as st
+
+st.title("📤 Upload .txt to Convert to Excel")
+
+uploaded_file = st.file_uploader("Choose a .txt file", type="txt")
+
+if uploaded_file is not None:
+    lines = uploaded_file.read().decode("utf-8").splitlines()
+
+
 filename = list(uploaded.keys())[0]
 with open(filename, "r", encoding="utf-8", errors="ignore") as f:
     lines = f.readlines()

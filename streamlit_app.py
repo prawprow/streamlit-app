@@ -35,11 +35,14 @@ if uploaded_file is not None:
         group_text = "\n".join(group)
 
         base_row = {}
-        match_ref = re.search(r'(\w\d{3})-(\d+)', group_text)
-        import_ref = match_ref.group(1) + match_ref.group(2) if match_ref else ""
+        match_ref = re.search(r'([A-Z]\d{3})-(\d+)', group_text)
+        if match_ref and not re.search(r'-D\d+', match_ref.group(0)):
+            import_ref = match_ref.group(1) + match_ref.group(2)
+        else:
+            import_ref = ""
         base_row["เลขที่ใบขนเข้า"] = import_ref
 
-        match_item = re.search(r'\w\d{3}-\d+\s+(-\d{4})', group_text)
+        match_item = re.search(r'[A-Z]\d{3}-\d+\s+(-\d{4})', group_text)
         item_number = str(int(match_item.group(1).replace("-", ""))) if match_item else ""
         base_row["รายการเข้า"] = item_number
 
@@ -59,7 +62,7 @@ if uploaded_file is not None:
         unit_price = ""
         duty_price = ""
         for line in group:
-            m = re.search(r'\w\d{3}-\d+\s+-\d{4}.*?(\d{1,3}(?:,\d{3})*\.\d+)\s+(\d{1,3}(?:,\d{3})*\.\d+)', line)
+            m = re.search(r'[A-Z]\d{3}-\d+\s+-\d{4}.*?(\d{1,3}(?:,\d{3})*\.\d+)\s+(\d{1,3}(?:,\d{3})*\.\d+)', line)
             if m:
                 unit_price = m.group(1).replace(",", "")
                 duty_price = m.group(2).replace(",", "")
@@ -111,7 +114,7 @@ if uploaded_file is not None:
         suborder = 1
         for line in group:
             match = re.search(
-                r'(\d{2}/\d{2}/\d{2})\s+(\w\d{3}-D\d+)\s+(-\d{4})\s+(\d{2}/\d{2}/\d{2})\s+(\d{2}/\d{2}/\d{2})\s+(\d+)\s+([\d,]+\.\d{3})\s+([\d,]+\.\d{2})',
+                r'(\d{2}/\d{2}/\d{2})\s+([A-Z]\d{3}-D\d+)\s+(-\d{4})\s+(\d{2}/\d{2}/\d{2})\s+(\d{2}/\d{2}/\d{2})\s+(\d+)\s+([\d,]+\.\d{3})\s+([\d,]+\.\d{2})',
                 line)
             if match:
                 export_row = base_row.copy()

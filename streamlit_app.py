@@ -10,22 +10,17 @@ uploaded_file = st.file_uploader("📤 อัปโหลดไฟล์ .txt", 
 
 if uploaded_file is not None:
     raw_text = uploaded_file.read().decode("utf-8", errors="ignore")
-    raw_lines = raw_text.splitlines()  # ❗️ไม่ใช้ strip() แล้ว
+    raw_lines = raw_text.splitlines()
 
-    # 👇 pattern ใหม่: ยอมให้ขึ้นต้นด้วย space และเลข 0
-    def is_entry_start(line):
-        return re.match(r'^\s*0*\d{6}\b', line)
-
+    # 🧠 Group ข้อมูลด้วยเลขชำระ 6–7 หลัก (มี 0 นำหน้าได้)
     entry_groups = []
     current_group = []
     entry_no = None
-
     for line in raw_lines:
-        if is_entry_start(line):
+        if re.match(r'^\s*0*\d{6}\b', line):  # รองรับเลข 6 หลัก (เช่น 001234)
             if current_group:
                 entry_groups.append((entry_no, current_group))
-            entry_no_match = re.match(r'\s*(\d{6,7})', line)
-            entry_no = entry_no_match.group(1) if entry_no_match else f"UNK-{len(entry_groups)}"
+            entry_no = line.strip().split()[0]
             current_group = [line]
         elif current_group:
             current_group.append(line)
@@ -46,7 +41,9 @@ if uploaded_file is not None:
         item_number = str(int(match_item.group(1).replace("-", ""))) if match_item else ""
         base_row["รายการเข้า"] = item_number
 
-        base_row["เลขชำระ"] = entry_no.lstrip("0")  # ตัด 0 นำหน้า
+        match_entry = re.search(r'^\s*0*(\d{6})\b', group_text)
+        if match_entry:
+            base_row["เลขชำระ"] = match_entry.group(1)
 
         match_date = re.search(r'\b(\d{2})/(\d{2})/(\d{2})\b', group_text)
         if match_date:
@@ -87,7 +84,7 @@ if uploaded_file is not None:
 
         duty = ""
         for line in group:
-            if re.match(r'\s*\d{6,7}', line):
+            if re.match(r'^\s*\d{6,7}', line):
                 matches = re.findall(r'\d{1,3}(?:,\d{3})*\.\d{2}', line)
                 if matches:
                     duty = matches[-1]
@@ -112,7 +109,7 @@ if uploaded_file is not None:
         suborder = 1
         for line in group:
             match = re.search(
-                r'(\d{2}/\d{2}/\d{2})\s+(A\d{3}-D\d+)\s+(-\d{4})\s+(\d{2}/\d{2}/\d{2})\s+(\d{2}/\d{2}/\d{2})\s+(\d+)\s+([\d,]+\.\d{3})\s+([\d,]+\.\d{2})',
+                r'(\d{2}/\d{2}/\d{2})\s+(A\d{3}-[CD]\d+)\s+(-\d{4})\s+(\d{2}/\d{2}/\d{2})\s+(\d{2}/\d{2}/\d{2})\s+(\d+)\s+([\d,]+\.\d{3})\s+([\d,]+\.\d{2})',
                 line)
             if match:
                 export_row = base_row.copy()
@@ -142,6 +139,32 @@ if uploaded_file is not None:
         ))
     )
     df_cleaned_final = df_combined[mask_cleaned]
+
+    # ✅ ล็อกลำดับคอลัมน์
+    column_order = [
+        "เลขที่ใบขนเข้า",
+        "รายการเข้า",
+        "เลขชำระ",
+        "วันชำระ",
+        "วันนำเข้า",
+        "วันdelivery",
+        "ราคาต่อหน่วย",
+        "อากร.ต่อหน่วย",
+        "รหัสวัตถุดิบ",
+        "ชื่อวัตถุดิบ",
+        "ปริมาณนำเข้า",
+        "อากรที่ชำระ",
+        "เลขที่ใบขนออก",
+        "รายการออก",
+        "วันผ่านพิธีการ",
+        "วันload",
+        "วันตรวจปล่อย",
+        "หน่วยวัตถุดิบ",
+        "ปริมาณที่มาตัด",
+        "เป็นอากร",
+        "สถานะยกไป"
+    ]
+    df_cleaned_final = df_cleaned_final[column_order]
 
     st.success("✅ ประมวลผลสำเร็จแล้ว")
     st.dataframe(df_cleaned_final)

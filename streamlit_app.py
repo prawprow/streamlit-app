@@ -133,14 +133,7 @@ if uploaded_file is not None:
     df_combined = pd.DataFrame(all_rows)
     df_combined = df_combined.sort_values(by=["_entry_index", "_suborder"]).drop(columns=["_entry_index", "_suborder"])
 
-    has_export_keys = df_combined[df_combined["เลขที่ใบขนออก"] != ""][["เลขที่ใบขนเข้า", "รายการเข้า"]].drop_duplicates()
-    mask_cleaned = ~(
-        (df_combined["เลขที่ใบขนออก"] == "") &
-        (df_combined[["เลขที่ใบขนเข้า", "รายการเข้า"]].apply(tuple, axis=1).isin(
-            has_export_keys.apply(tuple, axis=1)
-        ))
-    )
-    df_cleaned_final = df_combined[mask_cleaned]
+    df_cleaned_final = df_combined.copy()
 
     st.success("✅ ประมวลผลสำเร็จแล้ว")
     st.dataframe(df_cleaned_final)

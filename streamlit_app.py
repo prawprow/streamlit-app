@@ -1,3 +1,4 @@
+
 import streamlit as st
 import pandas as pd
 import re
@@ -12,7 +13,7 @@ if uploaded_file is not None:
     raw_text = uploaded_file.read().decode("utf-8", errors="ignore")
     raw_lines = [line.strip() for line in raw_text.splitlines() if line.strip()]
 
-    # ✅ หาจุดเริ่มรายการจริง: ต้องเริ่มด้วยเลข 6-7 หลัก + วันที่
+    # เริ่มที่บรรทัดที่เป็นรายการจริง (เลขชำระ + วันที่)
     start_index = next(
         (i for i, line in enumerate(raw_lines) if re.match(r'^\d{6,7}\s+\d{2}/\d{2}/\d{2}', line)), 0
     )
@@ -22,7 +23,7 @@ if uploaded_file is not None:
     current_group = []
     entry_no = None
     for line in data_lines:
-        if re.match(r'^\d{6,7}', line):
+        if re.match(r'^\d{6,7}\s+\d{2}/\d{2}/\d{2}', line):
             if current_group:
                 entry_groups.append((entry_no, current_group))
             entry_no = line.strip().split()[0]
@@ -36,21 +37,25 @@ if uploaded_file is not None:
 
     for entry_index, (entry_no, group) in enumerate(entry_groups):
         group_text = "\n".join(group)
-
         base_row = {}
-        match_ref = re.search(r'([A-Z]\d{3})-(\d+)', group_text)
-        import_ref = match_ref.group(1) + match_ref.group(2) if match_ref else ""
+
+        # ✅ ตัดใบขนเข้าเฉพาะจากบรรทัดสินค้าขาเข้า
+        import_ref = ""
+        for line in group:
+            if re.search(r'[A-Z]\d{3}-\d+\s+-\d{4}', line):
+                m = re.search(r'([A-Z]\d{3})-(\d+)', line)
+                if m:
+                    import_ref = m.group(1) + m.group(2)
+                break
         base_row["เลขที่ใบขนเข้า"] = import_ref
 
         match_item = re.search(r'[A-Z]\d{3}-\d+\s+(-\d{4})', group_text)
         item_number = str(int(match_item.group(1).replace("-", ""))) if match_item else ""
         base_row["รายการเข้า"] = item_number
 
-        match_entry = re.search(r'^(\d{6,7})', group_text)
-        if match_entry:
-            base_row["เลขชำระ"] = str(int(match_entry.group(1).lstrip("0")))
+        base_row["เลขชำระ"] = str(int(entry_no.lstrip("0")))
 
-        match_date = re.search(r'\b(\d{2})/(\d{2})/(\d{2})\b', group_text)
+        match_date = re.search(r'^\d{6,7}\s+(\d{2})/(\d{2})/(\d{2})', group_text, re.M)
         if match_date:
             base_row["วันชำระ"] = f"{int(match_date.group(1))}/{int(match_date.group(2))}/23"
 
@@ -89,7 +94,7 @@ if uploaded_file is not None:
 
         duty = ""
         for line in group:
-            if re.match(r'\d{6,7}', line):
+            if re.match(r'^\d{6,7}\s+\d{2}/\d{2}/\d{2}', line):
                 matches = re.findall(r'\d{1,3}(?:,\d{3})*\.\d{2}', line)
                 if matches:
                     duty = matches[-1]

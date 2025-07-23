@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 import re
@@ -13,17 +12,14 @@ if uploaded_file is not None:
     raw_text = uploaded_file.read().decode("utf-8", errors="ignore")
     raw_lines = [line.strip() for line in raw_text.splitlines() if line.strip()]
 
-    # เริ่มที่บรรทัดที่เป็นรายการจริง (เลขชำระ + วันที่)
-    start_index = next(
-        (i for i, line in enumerate(raw_lines) if re.match(r'^\d{6,7}\s+\d{2}/\d{2}/\d{2}', line)), 0
-    )
+    start_index = next((i for i, line in enumerate(raw_lines) if re.match(r'\d{6,7}', line)), 0)
     data_lines = raw_lines[start_index:]
 
     entry_groups = []
     current_group = []
     entry_no = None
     for line in data_lines:
-        if re.match(r'^\d{6,7}\s+\d{2}/\d{2}/\d{2}', line):
+        if re.match(r'\d{6,7}', line):
             if current_group:
                 entry_groups.append((entry_no, current_group))
             entry_no = line.strip().split()[0]
@@ -39,23 +35,19 @@ if uploaded_file is not None:
         group_text = "\n".join(group)
         base_row = {}
 
-        # ✅ ตัดใบขนเข้าเฉพาะจากบรรทัดสินค้าขาเข้า
-        import_ref = ""
-        for line in group:
-            if re.search(r'[A-Z]\d{3}-\d+\s+-\d{4}', line):
-                m = re.search(r'([A-Z]\d{3})-(\d+)', line)
-                if m:
-                    import_ref = m.group(1) + m.group(2)
-                break
+        match_ref = re.search(r'(\w\d{3})-(\d+)', group_text)
+        import_ref = match_ref.group(1) + match_ref.group(2) if match_ref else ""
         base_row["เลขที่ใบขนเข้า"] = import_ref
 
-        match_item = re.search(r'[A-Z]\d{3}-\d+\s+(-\d{4})', group_text)
+        match_item = re.search(r'\w\d{3}-\d+\s+(-\d{4})', group_text)
         item_number = str(int(match_item.group(1).replace("-", ""))) if match_item else ""
         base_row["รายการเข้า"] = item_number
 
-        base_row["เลขชำระ"] = str(int(entry_no.lstrip("0")))
+        match_entry = re.search(r'^(\d{6,7})', group_text)
+        if match_entry:
+            base_row["เลขชำระ"] = str(int(match_entry.group(1).lstrip("0")))
 
-        match_date = re.search(r'^\d{6,7}\s+(\d{2})/(\d{2})/(\d{2})', group_text, re.M)
+        match_date = re.search(r'\b(\d{2})/(\d{2})/(\d{2})\b', group_text)
         if match_date:
             base_row["วันชำระ"] = f"{int(match_date.group(1))}/{int(match_date.group(2))}/23"
 
@@ -67,7 +59,7 @@ if uploaded_file is not None:
         unit_price = ""
         duty_price = ""
         for line in group:
-            m = re.search(r'[A-Z]\d{3}-\d+\s+-\d{4}.*?(\d{1,3}(?:,\d{3})*\.\d+)\s+(\d{1,3}(?:,\d{3})*\.\d+)', line)
+            m = re.search(r'\w\d{3}-\d+\s+-\d{4}.*?(\d{1,3}(?:,\d{3})*\.\d+)\s+(\d{1,3}(?:,\d{3})*\.\d+)', line)
             if m:
                 unit_price = m.group(1).replace(",", "")
                 duty_price = m.group(2).replace(",", "")
@@ -94,7 +86,7 @@ if uploaded_file is not None:
 
         duty = ""
         for line in group:
-            if re.match(r'^\d{6,7}\s+\d{2}/\d{2}/\d{2}', line):
+            if re.match(r'\d{6,7}', line):
                 matches = re.findall(r'\d{1,3}(?:,\d{3})*\.\d{2}', line)
                 if matches:
                     duty = matches[-1]
@@ -119,7 +111,7 @@ if uploaded_file is not None:
         suborder = 1
         for line in group:
             match = re.search(
-                r'(\d{2}/\d{2}/\d{2})\s+([A-Z]\d{3}-D\d+)\s+(-\d{4})\s+(\d{2}/\d{2}/\d{2})\s+(\d{2}/\d{2}/\d{2})\s+(\d+)\s+([\d,]+\.\d{3})\s+([\d,]+\.\d{2})',
+                r'(\d{2}/\d{2}/\d{2})\s+(\w\d{3}-D\d+)\s+(-\d{4})\s+(\d{2}/\d{2}/\d{2})\s+(\d{2}/\d{2}/\d{2})\s+(\d+)\s+([\d,]+\.\d{3})\s+([\d,]+\.\d{2})',
                 line)
             if match:
                 export_row = base_row.copy()
@@ -139,10 +131,9 @@ if uploaded_file is not None:
                 all_rows.append(export_row)
 
     df_combined = pd.DataFrame(all_rows)
-    df_combined = df_combined[df_combined["เลขที่ใบขนเข้า"] != ""]
     df_combined = df_combined.sort_values(by=["_entry_index", "_suborder"]).drop(columns=["_entry_index", "_suborder"])
 
-    has_export_keys = df_combined[df_combined["เลขที่ใบขนออก"] != ""][["เลขที่ใบขนเข้า", "รายการเข้า"]].drop_duplicates()
+    has_export_keys = df_combined[df_combined["เลขที่ใบขนออก"] != ""]["เลขที่ใบขนเข้า", "รายการเข้า"].drop_duplicates()
     mask_cleaned = ~(
         (df_combined["เลขที่ใบขนออก"] == "") &
         (df_combined[["เลขที่ใบขนเข้า", "รายการเข้า"]].apply(tuple, axis=1).isin(
@@ -162,7 +153,7 @@ if uploaded_file is not None:
         return output.getvalue()
 
     st.download_button(
-        label="📥 ดาวน์โหลดเป็น Excel",
+        label="📅 ดาวน์โหลดเป็น Excel",
         data=convert_df(df_cleaned_final),
         file_name="result.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"

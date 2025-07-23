@@ -33,7 +33,7 @@ if uploaded_file is not None:
         group_text = "\n".join(group)
 
         base_row = {}
-        match_ref = re.search(r'(A\d{3})-(\d+)', group_text)
+        match_ref = re.search(r'(A\d{3})-(\d+)', group[0])
         import_ref = match_ref.group(1) + match_ref.group(2) if match_ref else ""
         base_row["เลขที่ใบขนเข้า"] = import_ref
 

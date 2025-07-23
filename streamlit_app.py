@@ -34,23 +34,20 @@ if uploaded_file is not None:
     for entry_index, (entry_no, group) in enumerate(entry_groups):
         group_text = "\n".join(group)
 
-        lines_split = [l.split() for l in group if re.search(r'\d{6,7}\s+\d{2}/\d{2}/\d{2}\s+\d+', l)]
-        if not lines_split:
-            continue
-
-        # ให้เลือกใบขนจากบรรทัดที่มีรหัสวัตถุดิบ ซึ่งอยู่ในตำแหน่งที่แน่นอน
-        first_valid_line = lines_split[0]
-        if len(first_valid_line) < 4:
-            continue
-
-        import_ref_full = first_valid_line[3]
-        if "-" in import_ref_full:
-            prefix, number = import_ref_full.split("-", 1)
-            import_ref = prefix + number
-        else:
-            import_ref = import_ref_full
-
         base_row = {}
+
+        # ดึงเลขที่ใบขนเข้าและรายการเข้าจากบรรทัดวัตถุดิบ
+        mat_line_match = None
+        for line in group:
+            if re.match(r'^\d{6,7}\s+\d{2}/\d{2}/\d{2}\s+\d+', line):
+                mat_line_match = line.split()
+                break
+
+        if not mat_line_match or len(mat_line_match) < 4:
+            continue
+
+        import_ref_full = mat_line_match[3]
+        import_ref = import_ref_full.replace("-", "")
         base_row["เลขที่ใบขนเข้า"] = import_ref
 
         match_item = re.search(rf'{re.escape(import_ref_full)}\s+(-\d{{4}})', group_text)
@@ -125,7 +122,7 @@ if uploaded_file is not None:
         suborder = 1
         for line in group:
             match = re.search(
-                r'(\d{2}/\d{2}/\d{2})\s+([A-Z]\d{3}-\S+)\s+(-\d{4})\s+(\d{2}/\d{2}/\d{2})\s+(\d{2}/\d{2}/\d{2})\s+(\d+)\s+([\d,]+\.\d{3})\s+([\d,]+\.\d{2})',
+                r'(\d{2}/\d{2}/\d{2})\s+(\S+-\S+)\s+(-\d{4})\s+(\d{2}/\d{2}/\d{2})\s+(\d{2}/\d{2}/\d{2})\s+(\d+)\s+([\d,]+\.\d{3})\s+([\d,]+\.\d{2})',
                 line)
             if match:
                 export_row = base_row.copy()

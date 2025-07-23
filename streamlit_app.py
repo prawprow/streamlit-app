@@ -10,19 +10,22 @@ uploaded_file = st.file_uploader("📤 อัปโหลดไฟล์ .txt", 
 
 if uploaded_file is not None:
     raw_text = uploaded_file.read().decode("utf-8", errors="ignore")
-    raw_lines = [line.strip() for line in raw_text.splitlines() if line.strip()]
+    raw_lines = raw_text.splitlines()  # ❗️ไม่ใช้ strip() แล้ว
 
-    start_index = next((i for i, line in enumerate(raw_lines) if re.match(r'\d{7}', line)), 0)
-    data_lines = raw_lines[start_index:]
+    # 👇 pattern ใหม่: ยอมให้ขึ้นต้นด้วย space และเลข 0
+    def is_entry_start(line):
+        return re.match(r'^\s*0*\d{6}\b', line)
 
     entry_groups = []
     current_group = []
     entry_no = None
-    for line in data_lines:
-        if re.match(r'\d{7}', line):
+
+    for line in raw_lines:
+        if is_entry_start(line):
             if current_group:
                 entry_groups.append((entry_no, current_group))
-            entry_no = line.strip().split()[0]
+            entry_no_match = re.match(r'\s*(\d{6,7})', line)
+            entry_no = entry_no_match.group(1) if entry_no_match else f"UNK-{len(entry_groups)}"
             current_group = [line]
         elif current_group:
             current_group.append(line)
@@ -43,9 +46,7 @@ if uploaded_file is not None:
         item_number = str(int(match_item.group(1).replace("-", ""))) if match_item else ""
         base_row["รายการเข้า"] = item_number
 
-        match_entry = re.search(r'^(\d{7})', group_text)
-        if match_entry:
-            base_row["เลขชำระ"] = str(int(match_entry.group(1)[1:]))
+        base_row["เลขชำระ"] = entry_no.lstrip("0")  # ตัด 0 นำหน้า
 
         match_date = re.search(r'\b(\d{2})/(\d{2})/(\d{2})\b', group_text)
         if match_date:
@@ -67,13 +68,13 @@ if uploaded_file is not None:
         base_row["ราคาต่อหน่วย"] = unit_price
         base_row["อากร.ต่อหน่วย"] = duty_price
 
-        match_material_code = re.search(r'\d{7}\s+\d{2}/\d{2}/\d{2}\s+(\d+)', group_text)
+        match_material_code = re.search(r'\d{6,7}\s+\d{2}/\d{2}/\d{2}\s+(\d+)', group_text)
         if match_material_code:
             code = match_material_code.group(1).lstrip("0")
             base_row["รหัสวัตถุดิบ"] = code
             material_name = ""
             for line in group:
-                match = re.match(rf"^\d{{7}}\s+\d{{2}}/\d{{2}}/\d{{2}}\s+0*{code}\b\s+(.*)", line)
+                match = re.match(rf"^\d{{6,7}}\s+\d{{2}}/\d{{2}}/\d{{2}}\s+0*{code}\b\s+(.*)", line)
                 if match:
                     after_code = match.group(1)
                     material_name = re.split(r"\s{2,}", after_code)[0].strip()
@@ -86,7 +87,7 @@ if uploaded_file is not None:
 
         duty = ""
         for line in group:
-            if re.match(r'\d{7}', line):
+            if re.match(r'\s*\d{6,7}', line):
                 matches = re.findall(r'\d{1,3}(?:,\d{3})*\.\d{2}', line)
                 if matches:
                     duty = matches[-1]

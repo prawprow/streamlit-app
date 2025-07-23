@@ -1,3 +1,4 @@
+
 import streamlit as st
 import pandas as pd
 import re
@@ -8,63 +9,55 @@ st.title("📄 แปลงไฟล์ .txt เป็น Excel")
 
 uploaded_file = st.file_uploader("📤 อัปโหลดไฟล์ .txt", type="txt")
 
-if uploaded_file is not None:
-    raw_text = uploaded_file.read().decode("utf-8", errors="ignore")
-    raw_lines = [line.strip() for line in raw_text.splitlines() if line.strip()]
-
-    # ใช้ pattern เลขชำระที่ 6-7 หลักต้นบรรทัด
-    start_index = next((i for i, line in enumerate(raw_lines) if re.match(r'^\d{6,7}\b', line)), 0)
-    data_lines = raw_lines[start_index:]
-
+def parse_txt_to_df(raw_lines):
     entry_groups = []
     current_group = []
-    for line in data_lines:
-        if re.match(r'^\d{6,7}\b', line):
+    entry_no = None
+
+    for line in raw_lines:
+        if re.match(r'^\d{6,7}', line):  # เริ่มต้นด้วยเลขชำระ 6-7 หลัก
             if current_group:
-                entry_groups.append(current_group)
+                entry_groups.append((entry_no, current_group))
+            entry_no = line.strip().split()[0]
             current_group = [line]
         elif current_group:
             current_group.append(line)
     if current_group:
-        entry_groups.append(current_group)
+        entry_groups.append((entry_no, current_group))
 
     all_rows = []
 
-    for entry_index, group in enumerate(entry_groups):
-        first_line = group[0]
+    for entry_index, (entry_no, group) in enumerate(entry_groups):
         group_text = "\n".join(group)
+        header_lines = group[:5]
+        header_text = "\n".join(header_lines)
 
         base_row = {}
+        match_ref = re.search(r'(A\d{3})-(\d{7})', header_text)
+        import_ref = match_ref.group(1) + match_ref.group(2) if match_ref else ""
+        base_row["เลขที่ใบขนเข้า"] = import_ref
 
-        # ===== ใบขนเข้า + รายการเข้า =====
-        match_ref = re.search(r'(A\d{3})-(\d+)', first_line)
-        base_row["เลขที่ใบขนเข้า"] = match_ref.group(1) + match_ref.group(2) if match_ref else ""
+        match_item = re.search(r'A\d{3}-\d{7}\s+(-\d{4})', group_text)
+        item_number = str(int(match_item.group(1).replace("-", ""))) if match_item else ""
+        base_row["รายการเข้า"] = item_number
 
-        match_item = re.search(r'A\d{3}-\d+\s+(-\d{4})', first_line)
-        base_row["รายการเข้า"] = str(int(match_item.group(1).replace("-", ""))) if match_item else ""
+        match_entry = re.match(r'^(\d{6,7})', group[0])
+        if match_entry:
+            base_row["เลขชำระ"] = str(int(match_entry.group(1)))
 
-        # ===== เลขชำระ =====
-        match_entry = re.match(r'^(\d{6,7})', first_line)
-        base_row["เลขชำระ"] = match_entry.group(1).lstrip("0") if match_entry else ""
+        match_date = re.search(r'\b(\d{2})/(\d{2})/(\d{2})\b', group_text)
+        if match_date:
+            base_row["วันชำระ"] = f"{int(match_date.group(1))}/{int(match_date.group(2))}/23"
 
-        # ===== วันชำระ =====
-        match_date = re.search(r'\b(\d{2})/(\d{2})/(\d{2})\b', first_line)
-        base_row["วันชำระ"] = f"{int(match_date.group(1))}/{int(match_date.group(2))}/23" if match_date else ""
-
-        # ===== วันนำเข้า/Delivery =====
         match_import = re.search(r'\((\d{2})/(\d{2})/(\d{2}),(\d{2})/(\d{2})/(\d{2})\)', group_text)
         if match_import:
             base_row["วันนำเข้า"] = f"{int(match_import.group(1))}/{int(match_import.group(2))}/23"
             base_row["วันdelivery"] = f"{int(match_import.group(4))}/{int(match_import.group(5))}/23"
-        else:
-            base_row["วันนำเข้า"] = ""
-            base_row["วันdelivery"] = ""
 
-        # ===== ราคาต่อหน่วย + อากรต่อหน่วย =====
         unit_price = ""
         duty_price = ""
         for line in group:
-            m = re.search(r'A\d{3}-\d+\s+-\d{4}.*?([\d,]+\.\d+)\s+([\d,]+\.\d+)', line)
+            m = re.search(r'A\d{3}-\d+\s+-\d{4}.*?(\d{1,3}(?:,\d{3})*\.\d+)\s+(\d{1,3}(?:,\d{3})*\.\d+)', line)
             if m:
                 unit_price = m.group(1).replace(",", "")
                 duty_price = m.group(2).replace(",", "")
@@ -72,7 +65,6 @@ if uploaded_file is not None:
         base_row["ราคาต่อหน่วย"] = unit_price
         base_row["อากร.ต่อหน่วย"] = duty_price
 
-        # ===== รหัส + ชื่อวัตถุดิบ =====
         match_material_code = re.search(r'\d{6,7}\s+\d{2}/\d{2}/\d{2}\s+(\d+)', group_text)
         if match_material_code:
             code = match_material_code.group(1).lstrip("0")
@@ -85,25 +77,20 @@ if uploaded_file is not None:
                     material_name = re.split(r"\s{2,}", after_code)[0].strip()
                     break
             base_row["ชื่อวัตถุดิบ"] = material_name
-        else:
-            base_row["รหัสวัตถุดิบ"] = ""
-            base_row["ชื่อวัตถุดิบ"] = ""
 
-        # ===== ปริมาณนำเข้า =====
-        qty_match = re.search(r'([\d,]+\.\d{3})\s+[\d,]+\.\d{2}', group_text)
-        base_row["ปริมาณนำเข้า"] = qty_match.group(1) if qty_match else ""
+        qty_match = re.search(r'(\d{1,3}(?:,\d{3})*\.\d{3})\s+\d{1,3}(?:,\d{3})*\.\d{2}', group_text)
+        if qty_match:
+            base_row["ปริมาณนำเข้า"] = qty_match.group(1)
 
-        # ===== อากรที่ชำระ =====
         duty = ""
         for line in group:
             if re.match(r'^\d{6,7}', line):
-                matches = re.findall(r'[\d,]+\.\d{2}', line)
+                matches = re.findall(r'\d{1,3}(?:,\d{3})*\.\d{2}', line)
                 if matches:
                     duty = matches[-1]
                 break
         base_row["อากรที่ชำระ"] = duty
 
-        # ===== ใบขนออก (default) =====
         base_row.update({
             "เลขที่ใบขนออก": "",
             "รายการออก": "",
@@ -119,11 +106,10 @@ if uploaded_file is not None:
         })
         all_rows.append(base_row)
 
-        # ===== หาใบขนออกถ้ามี =====
         suborder = 1
         for line in group:
             match = re.search(
-                r'(\d{2}/\d{2}/\d{2})\s+(A\d{3}-[CD]\d+)\s+(-\d{4})\s+(\d{2}/\d{2}/\d{2})\s+(\d{2}/\d{2}/\d{2})\s+(\d+)\s+([\d,]+\.\d{3})\s+([\d,]+\.\d{2})',
+                r'(\d{2}/\d{2}/\d{2})\s+(A\d{3}-D\d+)\s+(-\d{4})\s+(\d{2}/\d{2}/\d{2})\s+(\d{2}/\d{2}/\d{2})\s+(\d+)\s+([\d,]+\.\d{3})\s+([\d,]+\.\d{2})',
                 line)
             if match:
                 export_row = base_row.copy()
@@ -152,17 +138,12 @@ if uploaded_file is not None:
             has_export_keys.apply(tuple, axis=1)
         ))
     )
-    df_cleaned_final = df_combined[mask_cleaned]
+    return df_combined[mask_cleaned]
 
-    # ✅ จัดลำดับคอลัมน์ให้เหมือนเดิม
-    column_order = [
-        "เลขที่ใบขนเข้า", "รายการเข้า", "เลขชำระ", "วันชำระ",
-        "วันนำเข้า", "วันdelivery", "ราคาต่อหน่วย", "อากร.ต่อหน่วย",
-        "รหัสวัตถุดิบ", "ชื่อวัตถุดิบ", "ปริมาณนำเข้า", "อากรที่ชำระ",
-        "เลขที่ใบขนออก", "รายการออก", "วันผ่านพิธีการ", "วันload", "วันตรวจปล่อย",
-        "หน่วยวัตถุดิบ", "ปริมาณที่มาตัด", "เป็นอากร", "สถานะยกไป"
-    ]
-    df_cleaned_final = df_cleaned_final[column_order]
+if uploaded_file is not None:
+    raw_text = uploaded_file.read().decode("utf-8", errors="ignore")
+    raw_lines = [line.strip() for line in raw_text.splitlines() if line.strip()]
+    df_cleaned_final = parse_txt_to_df(raw_lines)
 
     st.success("✅ ประมวลผลสำเร็จแล้ว")
     st.dataframe(df_cleaned_final)

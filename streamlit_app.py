@@ -35,11 +35,8 @@ if uploaded_file is not None:
         group_text = "\n".join(group)
 
         base_row = {}
-        match_ref = re.search(r'([A-Z]\d{3})-(\d+)', group_text)
-        if match_ref and not re.search(r'-D\d+', match_ref.group(0)):
-            import_ref = match_ref.group(1) + match_ref.group(2)
-        else:
-            import_ref = ""
+        match_ref = re.search(r'([A-Z]\d{3})-(?!D)(\d+)', group_text)
+        import_ref = match_ref.group(1) + match_ref.group(2) if match_ref else ""
         base_row["เลขที่ใบขนเข้า"] = import_ref
 
         match_item = re.search(r'[A-Z]\d{3}-\d+\s+(-\d{4})', group_text)
@@ -136,17 +133,14 @@ if uploaded_file is not None:
     df_combined = pd.DataFrame(all_rows)
     df_combined = df_combined.sort_values(by=["_entry_index", "_suborder"]).drop(columns=["_entry_index", "_suborder"])
 
-    if "เลขที่ใบขนเข้า" in df_combined.columns and "รายการเข้า" in df_combined.columns:
-        has_export_keys = df_combined[df_combined["เลขที่ใบขนออก"] != ""][["เลขที่ใบขนเข้า", "รายการเข้า"]].drop_duplicates()
-        mask_cleaned = ~(
-            (df_combined["เลขที่ใบขนออก"] == "") &
-            (df_combined[["เลขที่ใบขนเข้า", "รายการเข้า"]].apply(tuple, axis=1).isin(
-                has_export_keys.apply(tuple, axis=1)
-            ))
-        )
-        df_cleaned_final = df_combined[mask_cleaned]
-    else:
-        df_cleaned_final = df_combined
+    has_export_keys = df_combined[df_combined["เลขที่ใบขนออก"] != ""][["เลขที่ใบขนเข้า", "รายการเข้า"]].drop_duplicates()
+    mask_cleaned = ~(
+        (df_combined["เลขที่ใบขนออก"] == "") &
+        (df_combined[["เลขที่ใบขนเข้า", "รายการเข้า"]].apply(tuple, axis=1).isin(
+            has_export_keys.apply(tuple, axis=1)
+        ))
+    )
+    df_cleaned_final = df_combined[mask_cleaned]
 
     st.success("✅ ประมวลผลสำเร็จแล้ว")
     st.dataframe(df_cleaned_final)
